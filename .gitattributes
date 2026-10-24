@@ -1,0 +1,8 @@
+# 文本文件统一换行符，避免 Windows / macOS / Linux 协作时整文件 diff
+* text=auto
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+*.png binary
+*.ico binary
+*.exe binary
