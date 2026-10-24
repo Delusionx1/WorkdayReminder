@@ -98,7 +98,7 @@ macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同�
 | 操作系统 | Windows 10 / 11（主要验证环境）、macOS 12+、常见桌面 Linux |
 | 运行时 | 免安装版无需 Python；源码运行需 Python 3.9+ |
 | 依赖 | PySide6 ≥ 6.5（打包另需 PyInstaller ≥ 6.0） |
-| 磁盘 | 源码约 1 MB；单文件 exe 约 43 MB |
+| 磁盘 | 源码不足 1 MB；单文件 exe 约 43 MB |
 
 ## 项目结构
 

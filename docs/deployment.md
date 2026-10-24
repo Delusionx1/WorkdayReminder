@@ -33,7 +33,7 @@
 | Python | 3.9 – 3.13 | 推荐 3.11 / 3.12；代码用了 `from __future__ import annotations`，低版本也能跑 |
 | PySide6 | ≥ 6.5 | `requirements.txt` 里已限定 `< 7` |
 | PyInstaller | ≥ 6.0 | 仅打包时需要 |
-| 磁盘 | 源码 < 1 MB；单文件 exe ≈ 43 MB | 单文件模式运行时还要在临时目录解出约 150 MB |
+| 磁盘 | 源码 < 1 MB；单文件 exe ≈ 43 MB | 单文件模式运行时还要把 Qt 等依赖解压到临时目录，占用一百多 MB |
 
 > ⚠️ 不建议在 **Anaconda base 环境**里直接 `pip install PySide6` 后打包：conda 的 Qt 与 pip 的 PySide6 容易互相抢 DLL，而且 base 环境里常存在 `pathlib` 这类废弃 backport 包，会让 PyInstaller 直接报错退出。用独立虚拟环境最省事。
 
@@ -103,7 +103,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name WorkdayRem
 | --- | --- |
 | `--onefile` | 打成单个 exe。分发方便，但每次启动都要解压到临时目录，冷启动 1–3 秒 |
 | `--windowed`（同 `--noconsole`） | 不弹出黑色命令行窗口。**调试期建议先不加**，这样报错能直接看到 |
-| `--name WorkdayReminder` | exe 文件名，同时也是自启注册表的值名，建议保持不变 |
+| `--name WorkdayReminder` | exe 文件名。开机自启的注册表值名固定是 `WorkdayReminder`，与文件名无关，改文件名不影响自启 |
 | `--clean` | 清掉旧的构建缓存，避免改了代码却打包出旧结果 |
 | `--noconfirm` | 覆盖 `dist` 时不交互确认，方便脚本化 |
 | `--icon app.ico` | 可选，替换默认图标（需 `.ico` 格式） |
