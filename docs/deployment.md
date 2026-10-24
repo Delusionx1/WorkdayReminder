@@ -38,7 +38,7 @@
 | 只想用，不想碰代码 | 直接下载 [Releases](https://github.com/Delusionx1/WorkdayReminder/releases) 里的 `WorkdayReminder.exe`，双击运行 | 1 分钟 |
 | 想改点东西（时间、界面、逻辑） | 从源码运行：装 Python → 下载代码 → `python main.py` | 20 分钟 |
 | 想发给同事 / 放到自己电脑长期用 | 源码运行 + 编译成 exe（第 2 或第 3 章） | 40 分钟 |
-| 在意启动速度、杀毒软件误报 | 用 Nuitka 编译（第 3 章） | 1 小时（首次编译慢） |
+| 在意启动速度、杀毒软件误报 | 用 Nuitka 编译（第 3 章） | 20–40 分钟（首次编译慢） |
 
 **最快的体验路径**：直接下 exe，跳到[第 4 章部署](#4-部署装到自己和别人的电脑上)。
 
@@ -328,10 +328,10 @@ Nuitka 走的是另一条路：先把你的 Python 代码**翻译成 C 代码**�
 | --- | --- | --- |
 | 原理 | 打包解释器 + 代码，运行时解释执行 | 代码 → C → 编译成本地机器码 |
 | 准备工作 | `pip install pyinstaller` | 还要有 C 编译器（首次会自动下载 MinGW） |
-| 首次编译时间 | 1–3 分钟 | 通常 5–20 分钟（看 CPU） |
+| 首次编译时间 | 1–3 分钟 | 本机实测约 3 分钟；首次要下编译器、或 CPU 较老时 5–15 分钟 |
 | 启动速度 | 较慢（每次解压） | 较快 |
 | 被杀软误报 | 较常见 | 相对少 |
-| 体积 | 约 43 MB | 与 PyInstaller 相近（见下方实测） |
+| 体积（单文件） | 约 43 MB | 约 19 MB（本机实测 19.1 MB） |
 | 排错难度 | 低，资料多 | 中等，编译报错偏"硬核" |
 
 > 结论：**自己用、想快出结果 → PyInstaller；要发给很多人、在意启动速度和误报 → Nuitka**。两个都装也不冲突，产物目录不同。
@@ -391,7 +391,7 @@ python -m nuitka --mode=onefile --enable-plugin=pyside6 --windows-console-mode=d
 
 **你会看到**：先是一堆 `Nuitka-Options`、`Nuitka:INFO` 开头的日志，然后进入编译阶段，不断刷 `Compiling ...` 之类的行。**几十分钟没动静也可能是正常的**——它在编译几百个 C 文件。
 
-**时间**：第一次 5–20 分钟（还要下载编译器就再加几分钟）；内存建议 8 GB 以上。
+**时间**：本机实测约 3 分钟（编译器已就绪）；第一次要下载编译器、CPU 较老时会到 5–15 分钟。内存建议 8 GB 以上。
 
 ### 3.5 一键脚本
 
@@ -409,8 +409,10 @@ build_windows_nuitka.bat
 
 ```text
 dist-nuitka\
-└── WorkdayReminder.exe        ← Nuitka 打出来的 exe
+└── WorkdayReminder.exe        ← Nuitka 打出来的 exe，本机实测 19.1 MB
 ```
+
+单文件产物用压缩存放，体积明显小于 PyInstaller（本机 43 MB），代价是首次启动要解压到临时目录，之后启动比 PyInstaller 快。
 
 验证方法和 PyInstaller 完全一样：双击 → 看悬浮窗 → 看托盘 → 再双击验证单实例。
 
@@ -700,7 +702,7 @@ https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/2027.json
 | 工作流 | 触发方式 | 用途 |
 | --- | --- | --- |
 | **Build Windows exe** | 推送 `v*` 标签时自动；也可手动 | PyInstaller 打包，约 2 分钟 |
-| **Build Windows exe (Nuitka)** | 只能手动触发 | Nuitka 打包，约 15–25 分钟，产物更小/启动更快 |
+| **Build Windows exe (Nuitka)** | 只能手动触发 | Nuitka 打包，比 PyInstaller 久得多（十几分钟起），产物更小、启动更快 |
 
 **怎么手动跑一次**：
 

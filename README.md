@@ -72,7 +72,7 @@ macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同�
 | 方式 | 一键脚本 | 特点 |
 | --- | --- | --- |
 | **PyInstaller** | `build_windows.bat` | 1–3 分钟出结果，单文件约 43 MB，启动稍慢、偶被杀软误报 |
-| **Nuitka** | `build_windows_nuitka.bat` | 首次 5–20 分钟（自动下载 MinGW），启动更快、误报更少 |
+| **Nuitka** | `build_windows_nuitka.bat` | 首次 3–15 分钟（自动下载 MinGW），单文件约 19 MB，启动更快、误报更少 |
 
 ## 文档
 
@@ -108,7 +108,7 @@ macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同�
 | 运行时 | 免安装版无需 Python；源码运行需 Python 3.9+ |
 | 依赖 | PySide6 ≥ 6.5 |
 | 编译 | PyInstaller ≥ 6.0，或 Nuitka（首次编译自动下载 MinGW，无需手动装 C 编译器） |
-| 磁盘 | 源码不足 1 MB；单文件 exe 约 43 MB |
+| 磁盘 | 源码不足 1 MB；单文件 exe：PyInstaller 约 43 MB，Nuitka 约 19 MB |
 
 ## 项目结构
 
