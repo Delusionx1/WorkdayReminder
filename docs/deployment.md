@@ -67,7 +67,7 @@
 ### 1.1 安装 Python
 
 1. 打开 <https://www.python.org/downloads/>；
-2. 点黄色按钮 **Download Python 3.12.x**（3.11 / 3.13 也可以，本文以 3.12 为例）；
+2. 点黄色按钮 **Download Python 3.x.x**（下载当前最新稳定版）。本文以 **3.12** 为例；如果最新版装依赖时报错，在页面下方的 **Looking for a specific release?** 里找 3.12 的 `Windows installer (64-bit)`；
 3. 双击下载好的 `python-3.12.x-amd64.exe`；
 4. **最关键的一步**：安装向导第一页底部，把 **Add python.exe to PATH** 勾上（不勾后面会一直提示"找不到 python"）；
 5. 点 **Install Now**，等进度条走完，点 Close。
@@ -386,7 +386,7 @@ python -m nuitka --mode=onefile --enable-plugin=pyside6 --windows-console-mode=d
 | `--output-dir=dist-nuitka` | 产物放到 `dist-nuitka` 文件夹，不和 PyInstaller 的 `dist` 混淆 |
 | `--output-filename=WorkdayReminder.exe` | 生成的 exe 名 |
 
-> **版本差异**：Nuitka 4.x 用 `--mode=onefile`。如果你的 Nuitka 是 3.x 或更早，把 `--mode=onefile` 换成 `--standalone --onefile`；`--windows-console-mode=disable` 换成 `--windows-disable-console`。
+> **版本差异**：Nuitka 4.x 用 `--mode=onefile`。如果你的 Nuitka 是 3.x 或更早，把 `--mode=onefile` 换成 `--standalone --onefile`；若 `--windows-console-mode=disable` 报"没有这个选项"，再换成老写法 `--windows-disable-console`。
 > 用 `python -m nuitka --version` 可以看自己装的是哪个版本。
 
 **你会看到**：先是一堆 `Nuitka-Options`、`Nuitka:INFO` 开头的日志，然后进入编译阶段，不断刷 `Compiling ...` 之类的行。**几十分钟没动静也可能是正常的**——它在编译几百个 C 文件。
@@ -435,10 +435,10 @@ python -m nuitka --mode=onefile --enable-plugin=pyside6 --windows-console-mode=d
 **觉得单文件启动慢 / 被杀软反复扫描**，改成目录模式，分发整个文件夹：
 
 ```bat
-python -m nuitka --mode=standalone --enable-plugin=pyside6 --windows-console-mode=disable --mingw64 --assume-yes-for-downloads --output-dir=dist-nuitka main.py
+python -m nuitka --mode=standalone --enable-plugin=pyside6 --windows-console-mode=disable --mingw64 --assume-yes-for-downloads --output-dir=dist-nuitka --output-filename=WorkdayReminder.exe main.py
 ```
 
-产物在 `dist-nuitka\main.dist\WorkdayReminder.exe`，**要连同整个 `main.dist` 文件夹一起发**。
+产物在 `dist-nuitka\main.dist\` 文件夹里（exe 名由 `--output-filename` 决定），**要连同整个文件夹一起发**。
 
 **想要更小更快的成品**（编译时间会明显变长）：
 
@@ -711,7 +711,7 @@ https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/2027.json
 3. 右侧 **Run workflow → Run workflow**；
 4. 等圆圈变绿，点进这次运行，页面底部 **Artifacts** 下载 zip。
 
-**PyInstaller 工作流内容**（`.github/workflows/build-windows.yml`）：
+**PyInstaller 工作流内容**（`.github/workflows/build-windows.yml`，下面是节选，完整内容见仓库文件）：
 
 ```yaml
 name: Build Windows exe
@@ -741,7 +741,7 @@ jobs:
           path: dist/WorkdayReminder.exe
 ```
 
-**Nuitka 工作流**（`.github/workflows/build-windows-nuitka.yml`）只有在你手动点运行时才会跑，避免每次打标签都等十几分钟：
+**Nuitka 工作流**（`.github/workflows/build-windows-nuitka.yml`，节选）只有在你手动点运行时才会跑，避免每次打标签都等十几分钟：
 
 ```yaml
 name: Build Windows exe (Nuitka)
