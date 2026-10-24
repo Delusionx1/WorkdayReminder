@@ -65,12 +65,21 @@ python main.py
 
 macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同。
 
+### 方式三：自己编译成 exe
+
+仓库提供两种打包方式，都是双击脚本即可，零基础步骤见[部署与编译指南](docs/deployment.md)：
+
+| 方式 | 一键脚本 | 特点 |
+| --- | --- | --- |
+| **PyInstaller** | `build_windows.bat` | 1–3 分钟出结果，单文件约 43 MB，启动稍慢、偶被杀软误报 |
+| **Nuitka** | `build_windows_nuitka.bat` | 首次 5–20 分钟（自动下载 MinGW），启动更快、误报更少 |
+
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
 | [用户使用文档](docs/user-guide.md) | 悬浮窗怎么读、每个设置项什么意思、自定义日期怎么写、提醒什么时候弹、常见问题 |
-| [部署文档](docs/deployment.md) | 环境要求、从源码运行、用 PyInstaller 打包成 exe / .app、开机自启原理、批量与离线部署、CI 自动构建、故障排查 |
+| [部署与编译指南](docs/deployment.md) | **零基础**装 Python、跑源码、PyInstaller 与 Nuitka 两种打包方式、开机自启原理、批量与离线部署、CI 自动构建、故障排查 |
 
 ## 数据来源
 
@@ -97,7 +106,8 @@ macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同�
 | --- | --- |
 | 操作系统 | Windows 10 / 11（主要验证环境）、macOS 12+、常见桌面 Linux |
 | 运行时 | 免安装版无需 Python；源码运行需 Python 3.9+ |
-| 依赖 | PySide6 ≥ 6.5（打包另需 PyInstaller ≥ 6.0） |
+| 依赖 | PySide6 ≥ 6.5 |
+| 编译 | PyInstaller ≥ 6.0，或 Nuitka（首次编译自动下载 MinGW，无需手动装 C 编译器） |
 | 磁盘 | 源码不足 1 MB；单文件 exe 约 43 MB |
 
 ## 项目结构
@@ -107,12 +117,14 @@ WorkdayReminder/
 ├── main.py                    # 全部程序逻辑（界面、日历计算、提醒、自启、单实例）
 ├── requirements.txt           # 运行依赖
 ├── WorkdayReminder.spec       # PyInstaller 打包配置
-├── build_windows.bat          # 一键打包脚本（双击即可）
+├── build_windows.bat          # 一键打包：PyInstaller（双击即可）
+├── build_windows_nuitka.bat   # 一键打包：Nuitka（双击即可）
 ├── docs/
 │   ├── user-guide.md          # 用户使用文档
-│   ├── deployment.md          # 部署 / 打包文档
+│   ├── deployment.md          # 部署与编译指南（零基础）
+│   ├── promo.md               # 分享用的宣传文案
 │   └── images/                # 文档截图
-└── .github/workflows/         # GitHub Actions 自动构建 Windows exe
+└── .github/workflows/         # GitHub Actions 自动构建（PyInstaller / Nuitka）
 ```
 
 ## 常见问题（速查）

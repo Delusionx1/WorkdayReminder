@@ -10,6 +10,13 @@ build/
 dist/
 *.manifest
 
+# Nuitka 构建产物
+dist-nuitka/
+*.build/
+*.dist/
+*.onefile-build/
+nuitka-crash-report.xml
+
 # 运行时数据（用户本机配置，绝不入库）
 settings.ini
 holiday_cn_*.json
