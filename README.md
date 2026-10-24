@@ -1,7 +1,7 @@
 # 工作日提醒器 · WorkdayReminder
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
-![PySide6](https://img.shields.io/badge/PySide6-6.5%2B-41CD52?logo=qt&logoColor=white)
+![PySide6](https://img.shields.io/badge/PySide6-6.7-41CD52?logo=qt&logoColor=white)
 ![Platform](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -106,7 +106,7 @@ macOS / Linux 把激活命令换成 `source .venv/bin/activate`，Windows 的 cm
 | --- | --- |
 | 操作系统 | Windows 10 / 11（主要验证环境）、macOS 12+、常见桌面 Linux |
 | 运行时 | 免安装版无需 Python；源码运行需 Python 3.9+ |
-| 依赖 | PySide6 ≥ 6.5 |
+| 依赖 | PySide6 6.7.x（已锁定 `<6.8`：6.8+ 的插件目录变化会让 PyInstaller 打包缺 Qt 插件） |
 | 编译 | PyInstaller ≥ 6.0，或 Nuitka（首次编译自动下载 MinGW，无需手动装 C 编译器） |
 | 磁盘 | 源码不足 1 MB；单文件 exe：PyInstaller 约 43 MB，Nuitka 约 19 MB |
 
@@ -135,7 +135,7 @@ WorkdayReminder/
 | 公司/客户没按国家标准放假 | 设置 → 自定义日期，按 `2026-11-11 休 年假` 写一行 |
 | 明年安排没加载 | 次年安排通常 11 月前后公布；联网后自动获取，也可手动点"更新节假日数据" |
 | 电脑在国外时时间不对 | 程序固定按**北京时间（UTC+8）**判断，这是有意设计 |
-| 开机没有自动启动 | 确认设置里"开机自动启动"已勾选；exe 移动过位置的话，手动运行一次即可自动修正 |
+| 开机没有自动启动 | 设置页会显示启动项真实状态（指向的文件不存在 / 被 Windows 禁用）；先看那行提示，详见[开机自动启动说明](docs/user-guide.md#54-开机自动启动) |
 
 更多问题见[用户使用文档的常见问题一节](docs/user-guide.md#10-常见问题)。
 

@@ -13,7 +13,7 @@
   * 节前最后一个工作日下午提醒收尾；调休上班日、假期结束第一天早上提醒
   * 自定义日期（年假、客户公司特殊安排）
   * 内置 2025、2026 年国务院放假安排；联网时自动从 holiday-cn 获取后续年份
-  * 开机自启（Windows 注册表 / macOS LaunchAgent / Linux autostart），打包后同样可用
+  * 开机自启（Windows 注册表 / macOS LaunchAgent / Linux autostart），PyInstaller、Nuitka 打包后都能正确注册
   * 单实例：重复启动只会打开已运行实例的设置
 
 依赖:  pip install -r requirements.txt
@@ -26,7 +26,6 @@ from __future__ import annotations
 import json
 import os
 import plistlib
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
@@ -312,50 +311,206 @@ def parse_custom_days(text: str) -> tuple[dict[date, tuple[str, bool]], list[str
 # ---------------------------------------------------------------------------
 # 开机自启
 # ---------------------------------------------------------------------------
+BUILD_DIR_NAMES = {"build", "dist", "dist-nuitka"}
+
+
+@dataclass
+class AutoStartStatus:
+    enabled: bool        # 启动项是否已登记
+    effective: bool      # 登记的目标存在且未被系统禁用
+    command: str         # 登记的命令行
+    target: str          # 命令行里的可执行文件
+    target_exists: bool
+    matches: bool        # 登记的是不是当前这份程序
+    blocked: bool        # 被 Windows「启动应用」禁用
+    packaged: bool       # 当前是否运行在打包后的 exe 里
+    level: str           # ok / warn / error / off
+    message: str
+    detail: str
+
+
 class AutoStart:
-    """打包后（PyInstaller，sys.frozen）注册 exe 本身；源码运行时注册 pythonw + 脚本。"""
+    """开机自启：打包后注册 exe 本身，源码运行时注册 pythonw + 脚本。
+
+    注意 Nuitka 打包的程序 **不会** 设置 sys.frozen，而且它的 sys.executable
+    指向 dist 目录里并不存在的 python.exe。所以打包后一律优先用 sys.argv[0]
+    （真实 exe 路径）作为登记目标，否则重启后启动项必然失效。
+    """
     REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
+    APPROVED_PATH = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
     MAC_PLIST = Path.home() / "Library/LaunchAgents/com.workday.reminder.plist"
     LINUX_DESKTOP = Path.home() / ".config/autostart/workday-reminder.desktop"
+    # Windows 任务管理器「启动应用」里"已启用"的标记（首字节 03 表示被禁用）
+    _ENABLED_BLOB = b"\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+    # ---- 当前程序 ----
+    @staticmethod
+    def is_packaged() -> bool:
+        """PyInstaller 用 sys.frozen 标记，Nuitka 用模块级 __compiled__ 标记。"""
+        return bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
 
     @staticmethod
-    def command() -> list[str]:
-        if getattr(sys, "frozen", False):
-            return [sys.executable]
-        exe = Path(sys.executable)
-        if sys.platform == "win32":
-            pyw = exe.with_name("pythonw.exe")
-            exe = pyw if pyw.exists() else exe
-        return [str(exe), str(Path(__file__).resolve())]
+    def exe_path() -> Path | None:
+        """打包后的真实 exe；源码运行时返回 None。"""
+        if not AutoStart.is_packaged():
+            return None
+        for cand in (sys.argv[0] if sys.argv else "", sys.executable):
+            if not cand:
+                continue
+            p = Path(cand)
+            if p.suffix.lower() == ".exe" and p.exists():
+                return p.resolve()
+        return None
 
     @classmethod
-    def is_enabled(cls) -> bool:
+    def command(cls) -> list[str]:
+        exe = cls.exe_path()
+        if exe is not None:
+            return [str(exe)]
+        interp = Path(sys.executable)
+        if sys.platform == "win32":
+            pyw = interp.with_name("pythonw.exe")
+            interp = pyw if pyw.exists() else interp
+        return [str(interp), str(Path(__file__).resolve())]
+
+    @classmethod
+    def command_line(cls) -> str:
+        """每个参数都加引号，中文、空格、8.3 短路径都不会被截断。"""
+        return " ".join(f'"{c}"' for c in cls.command())
+
+    # ---- 登记项读取 ----
+    @staticmethod
+    def split_command(cmdline: str) -> tuple[str, str]:
+        """拆出 (可执行文件, 参数)，兼容带引号与不带引号但含空格的路径。"""
+        s = (cmdline or "").strip()
+        if not s:
+            return "", ""
+        if s.startswith('"'):
+            end = s.find('"', 1)
+            if end > 0:
+                return s[1:end], s[end + 1:].strip()
+        idx = s.lower().find(".exe")
+        if idx != -1:
+            return s[:idx + 4], s[idx + 4:].strip()
+        parts = s.split(None, 1)
+        return parts[0], (parts[1] if len(parts) > 1 else "")
+
+    @classmethod
+    def registered(cls) -> str | None:
         if sys.platform == "win32":
             import winreg
             try:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, cls.REG_PATH) as k:
-                    winreg.QueryValueEx(k, APP_ID)
-                return True
+                    return str(winreg.QueryValueEx(k, APP_ID)[0])
             except OSError:
-                return False
+                return None
         if sys.platform == "darwin":
-            return cls.MAC_PLIST.exists()
-        return cls.LINUX_DESKTOP.exists()
+            return str(cls.MAC_PLIST) if cls.MAC_PLIST.exists() else None
+        return str(cls.LINUX_DESKTOP) if cls.LINUX_DESKTOP.exists() else None
+
+    @classmethod
+    def blocked_by_windows(cls) -> bool:
+        if sys.platform != "win32":
+            return False
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, cls.APPROVED_PATH) as k:
+                data = winreg.QueryValueEx(k, APP_ID)[0]
+        except OSError:
+            return False
+        return bool(data) and data[0] == 3
+
+    @staticmethod
+    def _looks_like_build_dir(p: Path) -> bool:
+        parts = [x.lower() for x in p.parts]
+        if any(x in BUILD_DIR_NAMES for x in parts):
+            return True
+        return any(x.endswith((".dist", ".build")) or x.startswith("onefile_") for x in parts)
+
+    @classmethod
+    def status(cls) -> AutoStartStatus:
+        want = cls.command_line()
+        want_exe = cls.command()[0]
+        packaged = cls.is_packaged()
+
+        if sys.platform != "win32":
+            path = cls.MAC_PLIST if sys.platform == "darwin" else cls.LINUX_DESKTOP
+            on = path.exists()
+            return AutoStartStatus(on, on, want, want_exe, Path(want_exe).exists(), on,
+                                   False, packaged, "ok" if on else "off",
+                                   f"已登记：{want_exe}" if on else "开机自启当前未开启，勾选后保存即可。",
+                                   f"启动项文件：{path}")
+
+        reg = cls.registered()
+        target, _args = cls.split_command(reg or "")
+        exists = bool(target) and Path(target).exists()
+        blocked = cls.blocked_by_windows()
+        matches = bool(reg) and reg.strip() == want
+        on = reg is not None
+
+        if not on:
+            return AutoStartStatus(False, False, "", "", False, False, blocked, packaged, "off",
+                                   "开机自启当前未开启，勾选后保存即可写入启动项。",
+                                   "登录时将运行：" + want)
+        if not exists:
+            level, msg = "error", f"⚠ 启动项指向的文件不存在：{target}"
+            detail = ("重新编译、移动程序或清理 build 目录后，旧启动项就会失效。\n"
+                      "点「保存」会按当前程序位置重写启动项。")
+        elif blocked:
+            level, msg = "warn", "⚠ 启动项被 Windows「启动应用」禁用了"
+            detail = ("任务管理器 → 启动应用 → 找到 WorkdayReminder → 启用；\n"
+                      "或在设置页点一次「保存」，程序会重新写入并解除禁用。")
+        elif not matches:
+            level, msg = "warn", f"启动项指向另一个位置：{target}"
+            detail = "点「保存」会改成当前运行的程序位置。"
+        else:
+            level, msg = "ok", f"已登记：{target}"
+            detail = "下次登录会自动启动。"
+
+        if cls._looks_like_build_dir(Path(target)):
+            msg += "（在构建目录里，重新编译后路径会失效）"
+            detail += ("\n建议先把程序复制到固定目录（例如 D:\\Tools\\WorkdayReminder\\），"
+                       "再从那里开启开机自启。")
+        return AutoStartStatus(on, exists and not blocked, reg or "", target, exists, matches,
+                               blocked, packaged, level, msg, detail)
+
+    # ---- 登记项写入 ----
+    @classmethod
+    def _set_approved(cls, on: bool) -> None:
+        """同步 Windows「启动应用」里的启用状态，否则任务管理器里被禁用的项依然不会启动。"""
+        if sys.platform != "win32":
+            return
+        import winreg
+        try:
+            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, cls.APPROVED_PATH, 0,
+                                    winreg.KEY_SET_VALUE) as k:
+                if on:
+                    winreg.SetValueEx(k, APP_ID, 0, winreg.REG_BINARY, cls._ENABLED_BLOB)
+                else:
+                    try:
+                        winreg.DeleteValue(k, APP_ID)
+                    except FileNotFoundError:
+                        pass
+        except OSError:
+            pass
 
     @classmethod
     def set_enabled(cls, on: bool) -> None:
         cmd = cls.command()
         if sys.platform == "win32":
             import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, cls.REG_PATH, 0, winreg.KEY_SET_VALUE) as k:
+            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, cls.REG_PATH, 0,
+                                    winreg.KEY_SET_VALUE) as k:
                 if on:
-                    winreg.SetValueEx(k, APP_ID, 0, winreg.REG_SZ, subprocess.list2cmdline(cmd))
+                    winreg.SetValueEx(k, APP_ID, 0, winreg.REG_SZ, cls.command_line())
                 else:
                     try:
                         winreg.DeleteValue(k, APP_ID)
                     except FileNotFoundError:
                         pass
-        elif sys.platform == "darwin":
+            cls._set_approved(on)
+            return
+        if sys.platform == "darwin":
             if on:
                 cls.MAC_PLIST.parent.mkdir(parents=True, exist_ok=True)
                 with open(cls.MAC_PLIST, "wb") as f:
@@ -374,13 +529,25 @@ class AutoStart:
                 cls.LINUX_DESKTOP.unlink()
 
     @classmethod
-    def refresh_path(cls) -> None:
-        """程序被移动过时，自动把启动项更新为当前路径。"""
+    def is_enabled(cls) -> bool:
+        return cls.status().enabled
+
+    @classmethod
+    def refresh_path(cls) -> bool:
+        """启动时自检：启动项指向失效路径或别的位置时，按当前位置重写。
+
+        返回 True 表示"原本指向的文件已不存在、这次被修好了"（用于提示用户）。
+        """
         try:
-            if cls.is_enabled():
+            st = cls.status()
+            if not st.enabled:
+                return False
+            if not st.target_exists or not st.matches:
                 cls.set_enabled(True)
+                return not st.target_exists
         except Exception:
             pass
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +896,12 @@ class SettingsDialog(QDialog):
         form.addRow("", self._row(self.cb_locked, b_reset))
 
         self.cb_autostart = QCheckBox("开机自动启动")
+        self.lbl_autostart = QLabel()
+        self.lbl_autostart.setWordWrap(True)
+        self.lbl_autostart.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.cb_autostart.toggled.connect(self._refresh_autostart_label)
         form.addRow("启动", self.cb_autostart)
+        form.addRow("", self.lbl_autostart)
         return w
 
     def _tab_custom(self) -> QWidget:
@@ -787,6 +959,7 @@ class SettingsDialog(QDialog):
             self.cb_autostart.setChecked(AutoStart.is_enabled())
         except Exception:
             self.cb_autostart.setChecked(False)
+        self._refresh_autostart_label()
         self.ed_custom.setPlainText(p.get_str("custom_days"))
         self.lbl_custom_err.clear()
         self.refresh_data()
@@ -815,9 +988,15 @@ class SettingsDialog(QDialog):
         p.set("locked", self.cb_locked.isChecked())
         p.set("custom_days", self.ed_custom.toPlainText())
         self.cal.set_custom(entries)
+        want = self.cb_autostart.isChecked()
         try:
-            if self.cb_autostart.isChecked() != AutoStart.is_enabled():
-                AutoStart.set_enabled(self.cb_autostart.isChecked())
+            # 每次保存都按当前程序位置重写：顺带修好"指向旧路径/被系统禁用"的启动项
+            AutoStart.set_enabled(want)
+            self._refresh_autostart_label()
+            st = AutoStart.status()
+            if want and not st.effective:
+                QMessageBox.warning(self, APP_NAME,
+                                    "启动项已写入，但仍存在问题：\n\n" + st.message + "\n\n" + st.detail)
         except Exception as exc:
             QMessageBox.warning(self, APP_NAME, f"开机自启设置失败：{exc}")
         self.saved.emit()
@@ -830,6 +1009,22 @@ class SettingsDialog(QDialog):
     def _preview_opacity(self, v: int) -> None:
         self.lbl_opacity.setText(f"{v}%")
         self.fw.set_opacity(v)
+
+    def _refresh_autostart_label(self) -> None:
+        """显示启动项的真实状态：已登记 / 指向失效文件 / 被系统禁用等。"""
+        try:
+            st = AutoStart.status()
+        except Exception as exc:
+            self.lbl_autostart.setText(f"无法读取启动项状态：{exc}")
+            return
+        colors = {"ok": "#1e8a4c", "warn": "#b26a00", "error": "#c0392b", "off": "#888888"}
+        text = st.message
+        if self.cb_autostart.isChecked() != st.enabled:
+            text += "（改完点保存生效）"
+        self.lbl_autostart.setText(text)
+        self.lbl_autostart.setStyleSheet(
+            f"color:{colors.get(st.level, '#888888')}; font-size:11px;")
+        self.lbl_autostart.setToolTip(st.detail)
 
     def _reset_pos(self) -> None:
         self.fw.move(self.fw.default_pos())
@@ -948,7 +1143,12 @@ class ReminderApp(QObject):
         self.timer.timeout.connect(self.tick)
         self.timer.start(30_000)
         QTimer.singleShot(2000, lambda: self.start_update(manual=False))
-        AutoStart.refresh_path()
+        try:
+            if AutoStart.refresh_path():
+                QTimer.singleShot(3200, lambda: self.notify(
+                    "已修复开机自启", "原启动项指向的文件已不存在，已改为当前程序位置。", "ok"))
+        except Exception:
+            pass
 
         if not self.prefs.get_bool("welcomed"):
             self.prefs.set("welcomed", True)

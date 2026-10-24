@@ -237,9 +237,15 @@ PyInstaller 把 Python 解释器、你的代码、PySide6 的 DLL 全部塞进�
 
 ```bat
 pip install pyinstaller
+python -c "import PySide6; print(PySide6.__version__)"
 ```
 
-**你会看到** `Successfully installed pyinstaller-6.x ...`。
+**你会看到** `Successfully installed pyinstaller-6.x ...` 和 `6.7.2`（或其它 6.7.x）。
+
+> ⚠️ **PySide6 版本很关键**：6.8 以后 Qt 插件目录从 `PySide6\plugins` 改成了 `PySide6\qt-plugins`，
+> PyInstaller 的 PySide6 钩子按旧目录收集，打出来的 exe 会**缺少 `qwindows.dll`，双击毫无反应**。
+> `requirements.txt` 已把版本限制在 `<6.8`；如果你手动装成了新版，执行
+> `pip install "PySide6==6.7.2"` 再重新打包。Nuitka 不受这个影响（它有 `--enable-plugin=pyside6`）。
 
 ### 2.3 编译命令
 
@@ -586,40 +592,99 @@ Start-Process $exe
 
 ## 5. 开机自启的实现
 
-「常规」页勾选「开机自动启动」后，程序按平台写启动项。命令内容取决于运行方式：
+### 5.1 写进去的是什么
 
-| 运行方式 | 写入的命令 |
-| --- | --- |
-| 打包后的 exe | exe 的绝对路径 |
-| 源码运行（Windows） | `pythonw.exe` + `main.py` 的绝对路径（优先 pythonw，避免黑框） |
-| 源码运行（macOS / Linux） | 当前 Python 解释器 + `main.py` 的绝对路径 |
+「常规」页勾选「开机自动启动」并保存后，程序按平台写启动项。命令内容取决于运行方式：
 
-各平台写入位置：
+| 运行方式 | 写入的命令 | 说明 |
+| --- | --- | --- |
+| PyInstaller 打的 exe | `"D:\Tools\WorkdayReminder\WorkdayReminder.exe"` | 直接登记 exe 自己 |
+| Nuitka 打的 exe（standalone / onefile） | 同上，真实 exe 路径 | Nuitka **不会**设置 `sys.frozen`，且它的 `sys.executable` 指向 dist 目录里并不存在的 `python.exe`，程序改用 `sys.argv[0]` 定位真实 exe，否则重启后必然失效 |
+| 源码运行（Windows） | `"C:\...\pythonw.exe" "F:\...\main.py"` | 依赖 Python 和这份源码，长期使用建议打包 |
+| 源码运行（macOS / Linux） | 当前 Python 解释器 + `main.py` | 同上 |
+
+写入位置：
 
 | 平台 | 位置 | 备注 |
 | --- | --- | --- |
-| Windows | `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `WorkdayReminder` | 当前用户级，**不需要管理员权限**；带空格的路径自动加引号 |
+| Windows | `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `WorkdayReminder` | 当前用户级，**不需要管理员权限**；路径统一加引号 |
 | macOS | `~/Library/LaunchAgents/com.workday.reminder.plist` | `RunAtLoad = true`；下次登录生效，立即生效用 `launchctl load -w` |
 | Linux | `~/.config/autostart/workday-reminder.desktop` | 带 `X-GNOME-Autostart-enabled=true` |
 
-查看 / 手动管理（Windows）：
+Windows 还有一个隐藏开关：任务管理器「启动应用」里的启用/禁用状态存在
 
-```powershell
-# 查看
-Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" | Select-Object WorkdayReminder
-
-# 手动添加
-Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name WorkdayReminder `
-  -Value '"D:\Tools\WorkdayReminder\WorkdayReminder.exe"'
-
-# 删除
-Remove-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name WorkdayReminder
+```text
+HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run
 ```
 
-两个容易踩的点：
+值名同样是 `WorkdayReminder`，12 字节二进制：首字节 `02` = 已启用，`03` = 已被禁用。**只删/写 `Run` 键而不动这里，任务管理器里显示"已禁用"的程序依然不会启动**——这是"勾了却不开机"的常见原因之一。
 
-- **移动 exe 后自启失效**：程序每次启动都会检查并重写启动项，所以移动后**手动运行一次**即可自愈；
-- **安全软件禁用启动项**：任务管理器 → 启动应用里如果显示"已禁用"，需要手动启用；部分安全软件也会拦截注册表写入，需要加白。
+### 5.2 程序自己的自检
+
+| 时机 | 行为 |
+| --- | --- |
+| 每次启动 | 检查已登记的启动项：目标文件不存在、或指向的不是当前这份程序 → 按当前位置重写，并弹一条"已修复开机自启"的通知 |
+| 保存设置 | 勾选状态下**无条件重写**启动项，并清除上面的"已禁用"标记（写回 `02 00 00 …`）；取消勾选则同时删除 `Run` 和 `StartupApproved` 两处 |
+| 设置页 | 在勾选框下方显示真实状态（绿=正常，黄=被禁用/指向别处，红=指向的文件不存在），鼠标悬停有处理说明 |
+
+<img src="images/settings-autostart-warning.png" width="620" alt="启动项失效时的提示">
+
+所以升级到含此修复的版本后，只要**手动运行一次**程序，之前失效的启动项就会被自动改正。
+
+### 5.3 部署建议
+
+- **固定目录**：放到 `D:\Tools\WorkdayReminder\` 这类不会被清理的位置再开自启；
+- **别用构建目录里的程序长期运行**：`build\main.dist\`、`dist\`、`dist-nuitka\` 会被下一次编译覆盖或删除，路径随之失效（当前版本会提示并自动修复，但没必要给自己找麻烦）；
+- **移动后运行一次**：换了目录，启动一次程序即可把启动项改到新位置；
+- **批量部署**参考[第 4.4 节](#44-批量部署给整个部门装)，预置 `settings.ini` + 写一次注册表。
+
+### 5.4 被组策略禁用时的替代方案
+
+有些公司电脑用组策略禁用了 `HKCU\...\Run` 和任务管理器启动项。此时改用**启动文件夹**（不需要管理员权限，组策略一般不管）：
+
+```powershell
+$startup = [Environment]::GetFolderPath('Startup')
+$ws = New-Object -ComObject WScript.Shell
+$lnk = $ws.CreateShortcut("$startup\WorkdayReminder.lnk")
+$lnk.TargetPath = 'D:\Tools\WorkdayReminder\WorkdayReminder.exe'
+$lnk.WorkingDirectory = 'D:\Tools\WorkdayReminder'
+$lnk.Save()
+```
+
+图形化做法：`Win + R` → `shell:startup` → 把 exe 的**快捷方式**拖进去。
+
+也可以用任务计划程序（登录时触发），路径不含空格时可以一条命令创建：
+
+```powershell
+schtasks /Create /TN "WorkdayReminder" /TR "D:\Tools\WorkdayReminder\WorkdayReminder.exe" /SC ONLOGON /RL LIMITED /F
+```
+
+> 创建计划任务通常需要管理员权限；路径含空格时，用任务计划程序图形界面新建"登录时"触发的任务更省事。
+
+### 5.5 验证与排查
+
+```powershell
+# 1. 看登记的命令
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v WorkdayReminder
+
+# 2. 看是否被任务管理器禁用（首字节 03 = 禁用）
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v WorkdayReminder
+
+# 3. 直接执行登记的命令，确认路径真的能启动
+& "D:\Tools\WorkdayReminder\WorkdayReminder.exe"
+
+# 4. 注销一次验证（比重启快）
+shutdown /l
+```
+
+常见对应关系：
+
+| 现象 | 结论 |
+| --- | --- |
+| `Run` 里的路径不存在 | 程序被移动/重新编译过；运行一次新版程序会自动修正，或在设置页点保存 |
+| `StartupApproved` 首字节是 `03` | 被任务管理器禁用；任务管理器里启用，或保存一次设置 |
+| 两处都正常但就是不启动 | 安全软件/组策略拦截；看[5.4](#54-被组策略禁用时的替代方案)，并检查安全软件的启动项管理 |
+| 源码运行模式失效 | 虚拟环境被删、Python 升级或项目目录改名；改用打包后的 exe |
 
 ## 6. 配置键参考
 
@@ -795,7 +860,8 @@ jobs:
 | 现象 | 处理 |
 | --- | --- |
 | `The 'pathlib' package is an obsolete backport` | `pip uninstall -y pathlib`，再打包 |
-| 打包成功但双击没反应 | 临时用 `--console` 打包，命令行运行看报错 |
+| 打包成功但双击没反应 / 进程几秒后退出 | 用 `--console` 重新打包，在命令行里运行看真实报错。最常见的是下面这条 Qt 插件缺失 |
+| 报 `Could not find the Qt platform plugin "windows" in ""` | PySide6 ≥ 6.8 把插件目录改成 `qt-plugins`，PyInstaller 钩子收集不到 `qwindows.dll`。固定 `pip install "PySide6==6.7.2"` 后重新打包；或升级 PyInstaller；或试 `--collect-all PySide6` |
 | 杀软报毒 / exe 被删 | 加白名单；改 `--onedir`；或做代码签名 |
 | 打包很慢 / 体积异常大 | 在干净的 `.venv` 里打包，别用 base 环境 |
 | 打包后提示缺少模块 | 确认打包和运行用的是同一个虚拟环境；必要时 `--hidden-import=模块名` |
