@@ -68,7 +68,7 @@
 
 1. 打开 <https://www.python.org/downloads/>；
 2. 点黄色按钮 **Download Python 3.x.x**（下载当前最新稳定版）。本文以 **3.12** 为例；如果最新版装依赖时报错，在页面下方的 **Looking for a specific release?** 里找 3.12 的 `Windows installer (64-bit)`；
-3. 双击下载好的 `python-3.12.x-amd64.exe`；
+3. 双击下载好的安装包（文件名类似 `python-3.12.x-amd64.exe`）；
 4. **最关键的一步**：安装向导第一页底部，把 **Add python.exe to PATH** 勾上（不勾后面会一直提示"找不到 python"）；
 5. 点 **Install Now**，等进度条走完，点 Close。
 
@@ -197,13 +197,14 @@ python main.py
 
 - 屏幕右上角出现半透明小窗；
 - 任务栏右下角（可能在"隐藏的图标"里）出现一个圆形图标；
-- 这个黑窗口会一直开着——**关掉它程序就退出了**，这是正常的。想让它安静地在后台跑，用：
+- 黑窗口会一直开着——**关掉它程序就退出了**，这是正常的；
+- 用户目录下生成 `C:\Users\你的用户名\.workday_reminder\settings.ini`。
+
+想让它安静地在后台跑（不显示黑窗口），改用：
 
 ```bat
 pythonw main.py
 ```
-
-- 用户目录下生成 `C:\Users\你的用户名\.workday_reminder\settings.ini`。
 
 第一次启动会弹一条欢迎通知，双击悬浮窗就能进设置。
 
@@ -215,7 +216,7 @@ pythonw main.py
 | --- | --- | --- |
 | `ModuleNotFoundError: No module named 'PySide6'` | 依赖没装上，或没用对虚拟环境 | 确认提示符有 `(.venv)`，重新 `pip install -r requirements.txt` |
 | `ImportError: DLL load failed while importing QtCore` | 系统里有多套 Qt 打架，或缺 C++ 运行库 | 见[第 9.1 节](#91-装环境--运行常见问题) |
-| 双击 `python main.py` 一闪而过 | 你在资源管理器里双击了 .py，报错来不及看 | 在命令行里运行，别双击 |
+| 双击 `main.py` 一闪而过 | 你在资源管理器里双击了 .py，报错来不及看 | 在命令行里运行，别双击 |
 
 到这里程序能跑了，剩下的都是"打包"。
 

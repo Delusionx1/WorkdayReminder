@@ -63,7 +63,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-macOS / Linux 把激活命令换成 `source .venv/bin/activate`，其余相同。
+macOS / Linux 把激活命令换成 `source .venv/bin/activate`，Windows 的 cmd 里则用 `.\.venv\Scripts\activate.bat`，其余相同。
 
 ### 方式三：自己编译成 exe
 
