@@ -44,7 +44,7 @@
 
 ### 2.1 使用免安装版（Windows）
 
-1. 从 [Releases](https://github.com/Delusionx1/WorkdayReminder/releases) 下载 `WorkdayReminder.exe`；
+1. 下载 [WorkdayReminder.exe](https://github.com/Delusionx1/WorkdayReminder/releases/latest/download/WorkdayReminder.exe)（约 43 MB），或到 [Releases](https://github.com/Delusionx1/WorkdayReminder/releases) 页面选择版本；
 2. 放到一个固定的目录，例如 `D:\Tools\WorkdayReminder\WorkdayReminder.exe`。
    **不要**放在"下载"文件夹、桌面临时目录或同步盘的临时目录里——exe 换个位置，开机自启的路径也要跟着变（程序会尝试自动修正，但放固定位置最省事）；
 3. 双击运行。约 1 秒后，右上角出现悬浮窗，托盘出现圆形图标。

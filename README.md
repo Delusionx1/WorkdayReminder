@@ -45,7 +45,7 @@
 
 ### 方式一：直接下载可执行文件（Windows，免安装）
 
-1. 打开 [Releases](https://github.com/Delusionx1/WorkdayReminder/releases) 下载 `WorkdayReminder.exe`；
+1. 直接下载 [WorkdayReminder.exe](https://github.com/Delusionx1/WorkdayReminder/releases/latest/download/WorkdayReminder.exe)（约 43 MB，Windows 免安装），或到 [Releases](https://github.com/Delusionx1/WorkdayReminder/releases) 查看全部版本；
 2. 把它放到一个**固定且不会被清理**的目录（例如 `D:\Tools\WorkdayReminder\`），不要放在"下载"文件夹里；
 3. 双击运行，屏幕右上角出现悬浮窗，任务栏托盘出现一个圆形的 **班 / 等 / 休** 图标；
 4. 双击悬浮窗 → 设置里调整你的上下班时间，需要的话勾上 **开机自动启动**。
